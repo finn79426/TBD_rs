@@ -8,6 +8,9 @@ use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 use std::str::FromStr;
 
+/// ------------------------------------------------------------------
+///                       ADDRESS FORMAT REGEX
+/// ------------------------------------------------------------------
 static REGEX_P2PKH: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
 static REGEX_P2SH: Lazy<Regex> =
@@ -16,6 +19,9 @@ static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[0-9a-z]{39,5
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
+/// ------------------------------------------------------------------
+///                         PUBLIC FUNCTION
+/// ------------------------------------------------------------------
 pub fn eth_to_tron(address: &str) -> Result<String, String> {
     if !is_ethereum(address) {
         return Err("not a valid ethereum address".to_string());
@@ -148,6 +154,9 @@ pub fn is_tron(address: &str) -> bool {
     expected_checksum == checksum
 }
 
+/// ------------------------------------------------------------------
+///                            UNIT TEST
+/// ------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
