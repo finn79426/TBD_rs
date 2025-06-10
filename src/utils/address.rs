@@ -12,7 +12,7 @@ static REGEX_P2PKH: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
 static REGEX_P2SH: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
-static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39,59}$").unwrap());
+static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39}$|^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{59}$").unwrap());
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
