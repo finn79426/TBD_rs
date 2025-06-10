@@ -43,7 +43,7 @@ pub fn eth_to_tron(address: &str) -> Result<String, String> {
 
     let tron_addr = bs58::encode([tron_bytes, checksum].concat()).into_string();
 
-    debug_assert!(&tron_addr.starts_with("T"));
+    debug_assert!(tron_addr.starts_with("T"));
     debug_assert!(tron_addr.len() == 34);
     debug_assert!(is_tron(&tron_addr));
 
@@ -60,7 +60,7 @@ pub fn tron_to_eth(address: &str) -> Result<String, String> {
     let eth_body = hex::encode(body);
     let eth_addr = to_checksum(&eth_body).unwrap();
 
-    debug_assert!(&eth_addr.starts_with("0x"));
+    debug_assert!(eth_addr.starts_with("0x"));
     debug_assert!(eth_addr.len() == 42);
     debug_assert!(is_ethereum(&eth_addr));
 
@@ -104,7 +104,7 @@ pub fn to_checksum(address: &str) -> Result<String, String> {
         }
     }
 
-    debug_assert!(&checksum_addr.starts_with("0x"));
+    debug_assert!(checksum_addr.starts_with("0x"));
     debug_assert!(checksum_addr.len() == 42);
     debug_assert!(is_ethereum(&checksum_addr));
 
@@ -143,7 +143,7 @@ pub fn is_ethereum(address: &str) -> bool {
     };
 
     debug_assert!(addr.len() == 42);
-    debug_assert!(&addr.starts_with("0x"));
+    debug_assert!(addr.starts_with("0x"));
 
     REGEX_ETH.is_match(&addr)
 }
@@ -153,7 +153,7 @@ pub fn is_tron(address: &str) -> bool {
         return false;
     }
 
-    debug_assert!(&address.starts_with("T"));
+    debug_assert!(address.starts_with("T"));
     debug_assert!(address.len() == 34);
 
     let decoded = match bs58::decode(address).into_vec() {
