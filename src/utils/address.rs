@@ -1,19 +1,71 @@
-use once_cell::sync::Lazy;
 use bitcoin::Address;
 use bitcoin::Network;
 use bs58;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
+use sha3::Keccak256;
 use std::str::FromStr;
 
-static REGEX_P2PKH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
-static REGEX_P2SH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
+static REGEX_P2PKH: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
+static REGEX_P2SH: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
 static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[0-9a-z]{39,59}$").unwrap());
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
+pub fn tron_to_eth(address: &str) -> Result<String, String> {
+    todo!();
+}
+
+pub fn eth_to_tron(address: &str) -> Result<String, String> {
+    todo!();
+}
+
+pub fn to_checksum(address: &str) -> Result<String, String> {
+    if !is_ethereum(address) {
+        return Err("not a valid ethereum address".to_string());
+    }
+
+    let addr = address.strip_prefix("0x").unwrap_or(address);
+
+    let addr = if addr.len() > 40 {
+        let offset = addr.len() - 40;
+        &addr[offset..]
+    } else {
+        addr
+    };
+
+    let addr_lower = addr.to_lowercase();
+    let hash = Keccak256::digest(addr_lower.as_bytes());
+
+    let mut checksum_addr = String::from("0x");
+
+    for (i, c) in addr_lower.chars().enumerate() {
+        let hash_byte = hash[i / 2];
+        let hash_nibble = if i % 2 == 0 {
+            (hash_byte >> 4) & 0xF
+        } else {
+            hash_byte & 0xF
+        };
+        if c.is_digit(10) {
+            checksum_addr.push(c);
+        } else if hash_nibble >= 8 {
+            checksum_addr.push(c.to_ascii_uppercase());
+        } else {
+            checksum_addr.push(c);
+        }
+    }
+
+    Ok(checksum_addr)
+}
+
 pub fn is_bitcoin(address: &str) -> bool {
-    if !(REGEX_P2PKH.is_match(address) || REGEX_P2SH.is_match(address) || REGEX_BECH32.is_match(address)) {
+    if !(REGEX_P2PKH.is_match(address)
+        || REGEX_P2SH.is_match(address)
+        || REGEX_BECH32.is_match(address))
+    {
         return false;
     }
 
@@ -67,6 +119,63 @@ pub fn is_tron(address: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_to_checksum() {
+        assert_eq!(
+            to_checksum("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        ); // checksum
+        assert_eq!(
+            to_checksum("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        ); // lower
+        assert_eq!(
+            to_checksum("0xDAC17F958D2EE523A2206206994597C13D831EC7"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        ); // upper
+        assert_eq!(
+            to_checksum("dAC17F958D2ee523a2206206994597C13D831ec7"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        ); // without prefix
+        assert_eq!(
+            to_checksum("0x000000000000000000000000dAC17F958D2ee523a2206206994597C13D831ec7"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        ); // padding zeros
+        assert_eq!(
+            to_checksum("000000000000000000000000dAC17F958D2ee523a2206206994597C13D831ec7"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        ); // padding zeros without prefix
+        assert_eq!(
+            to_checksum("0x0000000000000000000000000000000000000000000000000000000000000000"),
+            Ok("0x0000000000000000000000000000000000000000".to_string())
+        ); // pre-compile address
+        assert_eq!(
+            to_checksum("0x0000000000000000000000000000000000000000000000000000000000000001"),
+            Ok("0x0000000000000000000000000000000000000001".to_string())
+        ); // pre-compile address
+        assert_eq!(
+            to_checksum("0x000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+            Ok("0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".to_string())
+        ); // pre-compile address
+
+        assert_eq!(
+            to_checksum("hello world"),
+            Err("not a valid ethereum address".to_string())
+        ); // text string
+        assert_eq!(
+            to_checksum("1234567890"),
+            Err("not a valid ethereum address".to_string())
+        ); // decimal string
+        assert_eq!(
+            to_checksum("0xnotarealaddressatall"),
+            Err("not a valid ethereum address".to_string())
+        ); // not a related address
+        assert_eq!(
+            to_checksum(""),
+            Err("not a valid ethereum address".to_string())
+        ); // empty string
+    }
 
     #[test]
     fn test_is_bitcoin() {
