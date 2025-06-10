@@ -1,3 +1,4 @@
+use once_cell::sync::Lazy;
 use bitcoin::Address;
 use bitcoin::Network;
 use bs58;
@@ -5,12 +6,14 @@ use regex::Regex;
 use sha2::{Digest, Sha256};
 use std::str::FromStr;
 
-pub fn is_bitcoin(address: &str) -> bool {
-    let re_p2pkh = Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap();
-    let re_p2sh = Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap();
-    let re_bech32 = Regex::new(r"^(bc1)[0-9a-z]{39,59}$").unwrap();
+static REGEX_P2PKH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
+static REGEX_P2SH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
+static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[0-9a-z]{39,59}$").unwrap());
+static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
+static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
-    if !(re_p2pkh.is_match(address) || re_p2sh.is_match(address) || re_bech32.is_match(address)) {
+pub fn is_bitcoin(address: &str) -> bool {
+    if !(REGEX_P2PKH.is_match(address) || REGEX_P2SH.is_match(address) || REGEX_BECH32.is_match(address)) {
         return false;
     }
 
@@ -37,13 +40,11 @@ pub fn is_ethereum(address: &str) -> bool {
         _ => format!("0x{}", addr),
     };
 
-    let re = Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap();
-    re.is_match(&addr)
+    REGEX_ETH.is_match(&addr)
 }
 
 pub fn is_tron(address: &str) -> bool {
-    let re = Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap();
-    if !re.is_match(address) {
+    if !REGEX_TRON.is_match(address) {
         return false;
     }
 
