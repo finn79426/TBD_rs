@@ -8,9 +8,6 @@ use sha2::{Digest, Sha256};
 use sha3::Keccak256;
 use std::str::FromStr;
 
-/// ------------------------------------------------------------------
-///                       ADDRESS FORMAT REGEX
-/// ------------------------------------------------------------------
 static REGEX_P2PKH: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
 static REGEX_P2SH: Lazy<Regex> =
@@ -19,9 +16,6 @@ static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[0-9a-z]{39,5
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
-/// ------------------------------------------------------------------
-///                         PUBLIC FUNCTION
-/// ------------------------------------------------------------------
 pub fn eth_to_tron(address: &str) -> Result<String, String> {
     if !is_ethereum(address) {
         return Err("not a valid ethereum address".to_string());
@@ -36,8 +30,10 @@ pub fn eth_to_tron(address: &str) -> Result<String, String> {
         addr
     };
 
-    let tron_addr = format!("41{}", addr);
-    let tron_bytes = hex::decode(&tron_addr).unwrap();
+    debug_assert_eq!(addr.len(), 40);
+
+    let tron_hex = format!("41{}", addr);
+    let tron_bytes = hex::decode(&tron_hex).unwrap();
 
     let checksum = {
         let first_hash = Sha256::digest(&tron_bytes);
@@ -45,7 +41,13 @@ pub fn eth_to_tron(address: &str) -> Result<String, String> {
         second_hash[..4].to_vec()
     };
 
-    Ok(bs58::encode([tron_bytes, checksum].concat()).into_string())
+    let tron_addr = bs58::encode([tron_bytes, checksum].concat()).into_string();
+
+    debug_assert!(&tron_addr.starts_with("T"));
+    debug_assert!(tron_addr.len() == 34);
+    debug_assert!(is_tron(&tron_addr));
+
+    Ok(tron_addr)
 }
 
 pub fn tron_to_eth(address: &str) -> Result<String, String> {
@@ -57,6 +59,10 @@ pub fn tron_to_eth(address: &str) -> Result<String, String> {
     let body = &decoded[1..21];
     let eth_body = hex::encode(body);
     let eth_addr = to_checksum(&eth_body).unwrap();
+
+    debug_assert!(&eth_addr.starts_with("0x"));
+    debug_assert!(eth_addr.len() == 42);
+    debug_assert!(is_ethereum(&eth_addr));
 
     Ok(eth_addr)
 }
@@ -74,6 +80,8 @@ pub fn to_checksum(address: &str) -> Result<String, String> {
     } else {
         addr
     };
+
+    debug_assert!(addr.len() == 40);
 
     let addr_lower = addr.to_lowercase();
     let hash = Keccak256::digest(addr_lower.as_bytes());
@@ -95,6 +103,10 @@ pub fn to_checksum(address: &str) -> Result<String, String> {
             checksum_addr.push(c);
         }
     }
+
+    debug_assert!(&checksum_addr.starts_with("0x"));
+    debug_assert!(checksum_addr.len() == 42);
+    debug_assert!(is_ethereum(&checksum_addr));
 
     Ok(checksum_addr)
 }
@@ -130,6 +142,9 @@ pub fn is_ethereum(address: &str) -> bool {
         _ => format!("0x{}", addr),
     };
 
+    debug_assert!(addr.len() == 42);
+    debug_assert!(&addr.starts_with("0x"));
+
     REGEX_ETH.is_match(&addr)
 }
 
@@ -137,6 +152,9 @@ pub fn is_tron(address: &str) -> bool {
     if !REGEX_TRON.is_match(address) {
         return false;
     }
+
+    debug_assert!(&address.starts_with("T"));
+    debug_assert!(address.len() == 34);
 
     let decoded = match bs58::decode(address).into_vec() {
         Ok(vec) => vec,
@@ -154,9 +172,6 @@ pub fn is_tron(address: &str) -> bool {
     expected_checksum == checksum
 }
 
-/// ------------------------------------------------------------------
-///                            UNIT TEST
-/// ------------------------------------------------------------------
 #[cfg(test)]
 mod tests {
     use super::*;
