@@ -1,5 +1,5 @@
-use bitcoin::Address;
-use bitcoin::Network;
+use bitcoin::Address as BitcoinAddress;
+use bitcoin::Network as BitcoinNetwork;
 use bs58;
 use hex;
 use once_cell::sync::Lazy;
@@ -15,6 +15,22 @@ static REGEX_P2SH: Lazy<Regex> =
 static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[0-9a-z]{39,59}$").unwrap());
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
+
+#[derive(Debug, PartialEq)]
+pub enum Network {
+    BITCOIN,
+    ETHEREUM,
+    TRON,
+}
+
+pub fn identify(address: &str) -> Option<Network> {
+    match address {
+        addr if is_bitcoin(addr) => Some(Network::BITCOIN),
+        addr if is_ethereum(addr) => Some(Network::ETHEREUM),
+        addr if is_tron(addr) => Some(Network::TRON),
+        _ => None,
+    }
+}
 
 pub fn eth_to_tron(address: &str) -> Result<String, String> {
     if !is_ethereum(address) {
@@ -119,8 +135,8 @@ pub fn is_bitcoin(address: &str) -> bool {
         return false;
     }
 
-    match Address::from_str(address) {
-        Ok(addr) => addr.require_network(Network::Bitcoin).is_ok(),
+    match BitcoinAddress::from_str(address) {
+        Ok(addr) => addr.require_network(BitcoinNetwork::Bitcoin).is_ok(),
         Err(_) => false,
     }
 }
@@ -175,6 +191,51 @@ pub fn is_tron(address: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_identify() {
+        assert_eq!(
+            identify("1DFGekrfqNNWGL7Gw7BW2pvYpZVRNmmg18"),
+            Some(Network::BITCOIN)
+        );
+        assert_eq!(
+            identify("39kz54D6ewchz3sXvncHjFYpcNGUrZ11Te"),
+            Some(Network::BITCOIN)
+        );
+        assert_eq!(
+            identify("bc1qgll00eher0sferr6d5xsa9puxv8ez0z76xquyp"),
+            Some(Network::BITCOIN)
+        );
+        assert_eq!(
+            identify("bc1qvhu3557twysq2ldn6dut6rmaj3qk04p60h9l79wk4lzgy0ca8mfsnffz65"),
+            Some(Network::BITCOIN)
+        );
+        assert_eq!(
+            identify("bc1p7gdx38p6n0xngzv4p8vjmu2e70ym0w9anwxxs7s6fpn7zjm0rwvsuugdey"),
+            Some(Network::BITCOIN)
+        );
+        assert_eq!(
+            identify("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            Some(Network::ETHEREUM)
+        );
+        assert_eq!(
+            identify("0x000000000000000000000000dAC17F958D2ee523a2206206994597C13D831ec7"),
+            Some(Network::ETHEREUM)
+        );
+        assert_eq!(
+            identify("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"),
+            Some(Network::TRON)
+        );
+
+        assert_eq!(identify("hello world"), None);
+        assert_eq!(identify("1234567890"), None);
+        assert_eq!(identify("1notarealaddressatall"), None);
+        assert_eq!(identify("3notarealaddressatall"), None);
+        assert_eq!(identify("bc1qnotarealaddressatall"), None);
+        assert_eq!(identify("bc1pnotarealaddressatall"), None);
+        assert_eq!(identify("Tnotarealaddressatall"), None);
+        assert_eq!(identify(""), None);
+    }
 
     #[test]
     fn test_eth_to_tron() {
