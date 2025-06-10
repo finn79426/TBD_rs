@@ -1,0 +1,164 @@
+use bitcoin::Address;
+use bitcoin::Network;
+use bs58;
+use regex::Regex;
+use sha2::{Digest, Sha256};
+use std::str::FromStr;
+
+pub fn is_bitcoin(address: &str) -> bool {
+    let re_p2pkh = Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap();
+    let re_p2sh = Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap();
+    let re_bech32 = Regex::new(r"^(bc1)[0-9a-z]{39,59}$").unwrap();
+
+    if !(re_p2pkh.is_match(address) || re_p2sh.is_match(address) || re_bech32.is_match(address)) {
+        return false;
+    }
+
+    match Address::from_str(address) {
+        Ok(addr) => addr.require_network(Network::Bitcoin).is_ok(),
+        Err(_) => false,
+    }
+}
+
+pub fn is_ethereum(address: &str) -> bool {
+    let addr = address.strip_prefix("0x").unwrap_or(address);
+
+    let addr = match addr.len() {
+        len if len < 40 => return false,
+        len if len > 40 => {
+            // remove padded zeros
+            let offset = len - 40;
+            if addr[..offset].chars().all(|c| c == '0') {
+                format!("0x{}", &addr[offset..])
+            } else {
+                return false;
+            }
+        }
+        _ => format!("0x{}", addr),
+    };
+
+    let re = Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap();
+    re.is_match(&addr)
+}
+
+pub fn is_tron(address: &str) -> bool {
+    let re = Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap();
+    if !re.is_match(address) {
+        return false;
+    }
+
+    let decoded = match bs58::decode(address).into_vec() {
+        Ok(vec) => vec,
+        Err(_) => return false,
+    };
+
+    if decoded.len() != 25 {
+        return false;
+    }
+
+    let (body, checksum) = decoded.split_at(21);
+    let hash = Sha256::digest(&Sha256::digest(body));
+    let expected_checksum = &hash[..4];
+
+    expected_checksum == checksum
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_bitcoin() {
+        assert!(is_bitcoin("1DFGekrfqNNWGL7Gw7BW2pvYpZVRNmmg18")); // P2PKH
+        assert!(is_bitcoin("39kz54D6ewchz3sXvncHjFYpcNGUrZ11Te")); // P2SH
+        assert!(is_bitcoin("bc1qgll00eher0sferr6d5xsa9puxv8ez0z76xquyp")); // P2WPKH
+        assert!(is_bitcoin(
+            "bc1qvhu3557twysq2ldn6dut6rmaj3qk04p60h9l79wk4lzgy0ca8mfsnffz65"
+        )); // P2WSH
+        assert!(is_bitcoin(
+            "bc1p7gdx38p6n0xngzv4p8vjmu2e70ym0w9anwxxs7s6fpn7zjm0rwvsuugdey"
+        )); // P2TR
+
+        assert!(!is_bitcoin("1A1zP1eP5QGefi2DMPTfTL5SLmv7DivfN9")); // P2PKH invalid checksum
+        assert!(!is_bitcoin("3J98t1WpEZ73CNmQviecrnyiWrnqRhWNL9")); // P2SH invalid checksum
+        assert!(!is_bitcoin("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kygt081")); // P2WPKH invalid checksum
+        assert!(!is_bitcoin("bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4n0a9muf4")); // P2WSH invalid checksum
+        assert!(!is_bitcoin(
+            "bc1p5cyxnuxmeuwuvkwfem96l0gdku6zkszt5v8a8h3u6d6c6r8s5w7qz6v7x0b"
+        )); // P2TR invalid checksum
+
+        assert!(!is_bitcoin("1DFGekrfqNNWGL7Gw7BW2pvYpZVRNmmg1")); // P2PKH too short
+        assert!(!is_bitcoin("1DFGekrfqNNWGL7Gw7BW2pvYpZVRNmmg1O")); // P2PKH invalid char 'O'
+        assert!(!is_bitcoin("39kz54D6ewchz3sXvncHjFYpcNGUrZ11T")); // P2SH too short
+        assert!(!is_bitcoin("39kz54D6ewchz3sXvncHjFYpcNGUrZ11TeI")); // P2SH invalid char 'I'
+        assert!(!is_bitcoin("bc1qgll00eher0sferr6d5xsa9puxv8ez0z76xquy")); // P2WPKH too short
+        assert!(!is_bitcoin("bc1qgll00eher0sferr6d5xsa9puxv8ez0z76xquyP")); // P2WPKH disallow uppercase
+        assert!(!is_bitcoin(
+            "bc1qvhu3557twysq2ldn6dut6rmaj3qk04p60h9l79wk4lzgy0ca8mfsnffz6"
+        )); // P2WSH too short
+        assert!(!is_bitcoin(
+            "bc1qvhu3557twysq2ldn6dut6rmaj3qk04p60h9l79wk4lzgy0ca8mfsnffz6O"
+        )); // P2WSH invalid char 'O'
+        assert!(!is_bitcoin(
+            "bc1p7gdx38p6n0xngzv4p8vjmu2e70ym0w9anwxxs7s6fpn7zjm0rwvsuugde"
+        )); // P2TR too short
+        assert!(!is_bitcoin(
+            "bc1p7gdx38p6n0xngzv4p8vjmu2e70ym0w9anwxxs7s6fpn7zjm0rwvsuugdeO"
+        )); // P2TR invalid char 'O'
+
+        assert!(!is_bitcoin("hello world")); // text string
+        assert!(!is_bitcoin("1234567890")); // decimal string
+        assert!(!is_bitcoin("1notarealaddressatall")); // not a related address
+        assert!(!is_bitcoin("3notarealaddressatall")); // not a related address
+        assert!(!is_bitcoin("bc1qnotarealaddressatall")); // not a related address
+        assert!(!is_bitcoin("bc1pnotarealaddressatall")); // not a related address
+        assert!(!is_bitcoin("")); // empty string
+    }
+
+    #[test]
+    fn test_is_ethereum() {
+        assert!(is_ethereum("0xdAC17F958D2ee523a2206206994597C13D831ec7")); // checksum
+        assert!(is_ethereum("0xdac17f958d2ee523a2206206994597c13d831ec7")); // all lower
+        assert!(is_ethereum("0xDAC17F958D2EE523A2206206994597C13D831EC7")); // all upper
+        assert!(is_ethereum(
+            "0x000000000000000000000000dAC17F958D2ee523a2206206994597C13D831ec7"
+        )); // allow full 32 bytes
+        assert!(is_ethereum(
+            "0x0000000000000000000000000000000000000000000000000000000000000000"
+        )); // allow pre-compile address
+        assert!(is_ethereum(
+            "0x0000000000000000000000000000000000000000000000000000000000000001"
+        )); // allow pre-compile address
+        assert!(is_ethereum(
+            "0x000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+        )); // allow pre-compile address
+
+        assert!(!is_ethereum("0xdAC17F958D2ee523a2206206994597C13D831ecG")); // invalid hex char G
+        assert!(!is_ethereum("dAC17F958D2ee523a2206206994597C13D831ecG")); // missing 0x
+        assert!(!is_ethereum("0xdAC17F958D2ee523a2206206994597C13D831ec")); // 41 chars
+        assert!(!is_ethereum("0xfdAC17F958D2ee523a2206206994597C13D831ec7")); // 43 chars (MSB not starts with '0')
+
+        assert!(!is_ethereum("hello world")); // text string
+        assert!(!is_ethereum("1234567890")); // decimal string
+        assert!(!is_ethereum("0xnotarealaddressatall")); // not a related address
+        assert!(!is_ethereum("")); // empty string
+    }
+
+    #[test]
+    fn test_is_tron() {
+        assert!(is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")); // valid
+
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj7t")); // invalid checksum
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLjuu")); // invalid last char
+        assert!(!is_tron("SR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")); // invalid prefix
+        assert!(!is_tron("TR7NHqjeKQxGTCi8qZZZY4pL8otSzgjLj6t")); // invalid middle char
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjL")); // length too short
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6tt")); // length too long
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL0otSzgjLj6t")); // invalid char '0'
+
+        assert!(!is_tron("hello world")); // text string
+        assert!(!is_tron("1234567890")); // decimal string
+        assert!(!is_tron("Tnotarealaddressatall")); // not a related address
+        assert!(!is_tron("")); // empty string
+    }
+}

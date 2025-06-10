@@ -1,0 +1,10 @@
+[package]
+name = "TBD_rs"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bitcoin = "0.32.6"
+bs58 = "0.5.1"
+regex = "1.11.1"
+sha2 = "0.10.9"
