@@ -12,7 +12,9 @@ static REGEX_P2PKH: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^1[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
 static REGEX_P2SH: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"^3[1-9A-HJ-NP-Za-km-z]{25,34}$").unwrap());
-static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39}$|^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{59}$").unwrap());
+static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{39}$|^(bc1)[qpzry9x8gf2tvdw0s3jn54khce6mua7l]{59}$").unwrap()
+});
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
@@ -320,7 +322,7 @@ mod tests {
         assert_eq!(
             tron_to_eth("TR7NHqjeKQxGTCi8q8ZY4pL0otSzgjLj6t"),
             Err("not a valid tron address".to_string())
-        ); // invalid char '0'
+        ); // invalid charset '0'
     }
 
     #[test]
@@ -467,7 +469,10 @@ mod tests {
         assert!(!is_tron("TR7NHqjeKQxGTCi8qZZZY4pL8otSzgjLj6t")); // invalid middle char
         assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjL")); // length too short
         assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6tt")); // length too long
-        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL0otSzgjLj6t")); // invalid char '0'
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pL0otSzgjLj6t")); // invalid charset '0'
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pLOotSzgjLj6t")); // invalid charset 'O'
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pLIotSzgjLj6t")); // invalid charset 'I'
+        assert!(!is_tron("TR7NHqjeKQxGTCi8q8ZY4pLlotSzgjLj6t")); // invalid charset 'l'
 
         assert!(!is_tron("hello world")); // text string
         assert!(!is_tron("1234567890")); // decimal string
