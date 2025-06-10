@@ -1,6 +1,8 @@
 use bitcoin::Address;
 use bitcoin::Network;
+use bitcoin::bech32::primitives::checksum;
 use bs58;
+use hex;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use sha2::{Digest, Sha256};
@@ -15,11 +17,33 @@ static REGEX_BECH32: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(bc1)[0-9a-z]{39,5
 static REGEX_ETH: Lazy<Regex> = Lazy::new(|| Regex::new(r"^0x[0-9a-fA-F]{40}$").unwrap());
 static REGEX_TRON: Lazy<Regex> = Lazy::new(|| Regex::new(r"^T[1-9A-HJ-NP-Za-km-z]{33}$").unwrap());
 
-pub fn tron_to_eth(address: &str) -> Result<String, String> {
-    todo!();
+pub fn eth_to_tron(address: &str) -> Result<String, String> {
+    if !is_ethereum(address) {
+        return Err("not a valid ethereum address".to_string());
+    }
+
+    let addr = address.strip_prefix("0x").unwrap_or(address);
+
+    let addr = if addr.len() > 40 {
+        let offset = addr.len() - 40;
+        &addr[offset..]
+    } else {
+        addr
+    };
+
+    let tron_addr = format!("41{}", addr);
+    let tron_bytes = hex::decode(&tron_addr).unwrap();
+
+    let checksum = {
+        let first_hash = Sha256::digest(&tron_bytes);
+        let second_hash = Sha256::digest(&first_hash);
+        second_hash[..4].to_vec()
+    };
+
+    Ok(bs58::encode([tron_bytes, checksum].concat()).into_string())
 }
 
-pub fn eth_to_tron(address: &str) -> Result<String, String> {
+pub fn tron_to_eth(address: &str) -> Result<String, String> {
     todo!();
 }
 
@@ -119,6 +143,55 @@ pub fn is_tron(address: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_eth_to_tron() {
+        assert_eq!(
+            eth_to_tron("0xdAC17F958D2ee523a2206206994597C13D831ec7"),
+            Ok("TVut7P3Wnem9TFcSAjow2WGETKFBs5CMyj".to_string())
+        ); // checksum
+        assert_eq!(
+            eth_to_tron("0xdac17f958d2ee523a2206206994597c13d831ec7"),
+            Ok("TVut7P3Wnem9TFcSAjow2WGETKFBs5CMyj".to_string())
+        ); // all lower
+        assert_eq!(
+            eth_to_tron("0xDAC17F958D2EE523A2206206994597C13D831EC7"),
+            Ok("TVut7P3Wnem9TFcSAjow2WGETKFBs5CMyj".to_string())
+        ); // all upper
+        assert_eq!(
+            eth_to_tron("0x000000000000000000000000dAC17F958D2ee523a2206206994597C13D831ec7"),
+            Ok("TVut7P3Wnem9TFcSAjow2WGETKFBs5CMyj".to_string())
+        ); // allow full 32 bytes
+        assert_eq!(
+            eth_to_tron("0x0000000000000000000000000000000000000000000000000000000000000000"),
+            Ok("T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb".to_string())
+        ); // allow pre-compile address
+        assert_eq!(
+            eth_to_tron("0x0000000000000000000000000000000000000000000000000000000000000001"),
+            Ok("T9yD14Nj9j7xAB4dbGeiX9h8unkKLxmGkn".to_string())
+        ); // allow pre-compile address
+        assert_eq!(
+            eth_to_tron("0x000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"),
+            Ok("TXka46PPwttNPWfFDPtt3GUodbPThyufaV".to_string())
+        ); // allow pre-compile address
+
+        assert_eq!(
+            eth_to_tron("hello world"),
+            Err("not a valid ethereum address".to_string())
+        ); // text string
+        assert_eq!(
+            eth_to_tron("1234567890"),
+            Err("not a valid ethereum address".to_string())
+        ); // decimal string
+        assert_eq!(
+            eth_to_tron("0xnotarealaddressatall"),
+            Err("not a valid ethereum address".to_string())
+        ); // not a related address
+        assert_eq!(
+            eth_to_tron(""),
+            Err("not a valid ethereum address".to_string())
+        ); // empty string
+    }
 
     #[test]
     fn test_to_checksum() {
