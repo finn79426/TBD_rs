@@ -1,6 +1,5 @@
 use bitcoin::Address;
 use bitcoin::Network;
-use bitcoin::bech32::primitives::checksum;
 use bs58;
 use hex;
 use once_cell::sync::Lazy;
@@ -44,7 +43,16 @@ pub fn eth_to_tron(address: &str) -> Result<String, String> {
 }
 
 pub fn tron_to_eth(address: &str) -> Result<String, String> {
-    todo!();
+    if !is_tron(address) {
+        return Err("not a valid tron address".to_string());
+    }
+
+    let decoded = bs58::decode(address).into_vec().unwrap();
+    let body = &decoded[1..21];
+    let eth_body = hex::encode(body);
+    let eth_addr = to_checksum(&eth_body).unwrap();
+
+    Ok(eth_addr)
 }
 
 pub fn to_checksum(address: &str) -> Result<String, String> {
@@ -191,6 +199,43 @@ mod tests {
             eth_to_tron(""),
             Err("not a valid ethereum address".to_string())
         ); // empty string
+    }
+
+    #[test]
+    fn test_tron_to_eth() {
+        assert_eq!(
+            tron_to_eth("TVut7P3Wnem9TFcSAjow2WGETKFBs5CMyj"),
+            Ok("0xdAC17F958D2ee523a2206206994597C13D831ec7".to_string())
+        );
+
+        assert_eq!(
+            tron_to_eth("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj7t"),
+            Err("not a valid tron address".to_string())
+        ); // invalid checksum
+        assert_eq!(
+            tron_to_eth("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLjuu"),
+            Err("not a valid tron address".to_string())
+        ); // invalid last char
+        assert_eq!(
+            tron_to_eth("SR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t"),
+            Err("not a valid tron address".to_string())
+        ); // invalid prefix
+        assert_eq!(
+            tron_to_eth("TR7NHqjeKQxGTCi8qZZZY4pL8otSzgjLj6t"),
+            Err("not a valid tron address".to_string())
+        ); // invalid middle char
+        assert_eq!(
+            tron_to_eth("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjL"),
+            Err("not a valid tron address".to_string())
+        ); // length too short
+        assert_eq!(
+            tron_to_eth("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6tt"),
+            Err("not a valid tron address".to_string())
+        ); // length too long
+        assert_eq!(
+            tron_to_eth("TR7NHqjeKQxGTCi8q8ZY4pL0otSzgjLj6t"),
+            Err("not a valid tron address".to_string())
+        ); // invalid char '0'
     }
 
     #[test]
