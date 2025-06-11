@@ -99,6 +99,7 @@ pub fn to_checksum(address: &str) -> Result<String, String> {
         addr
     };
 
+    debug_assert!(!addr.starts_with("0x"));
     debug_assert!(addr.len() == 40);
 
     let addr_lower = addr.to_lowercase();
